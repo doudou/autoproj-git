@@ -28,6 +28,12 @@ module Autoproj
                 end
             end
 
+            def git_repack(pkg, progress)
+                pkg.progress_start "#{progress}%s: repack", done_message: "#{progress}%s: gc" do
+                    pkg.importer.run_git_bare(pkg, 'repack', '-adl')
+                end
+            end
+
             def git_all_remotes(pkg)
                 pkg.importer.run_git(pkg, 'config', '--list').
                     map do |line|
@@ -61,6 +67,7 @@ module Autoproj
 
             def cleanup_package(pkg, progress, options = Hash.new)
                 git_gc(pkg, progress)
+                git_repack(pkg, progress)
 
                 if options[:remove_obsolete_remotes]
                     git_remove_obsolete_remotes(pkg, progress)
