@@ -66,15 +66,15 @@ module Autoproj
             end
 
             def cleanup_package(pkg, progress, options = Hash.new)
-                git_gc(pkg, progress)
-                git_repack(pkg, progress)
-
                 if options[:remove_obsolete_remotes]
                     git_remove_obsolete_remotes(pkg, progress)
                 end
                 if !options[:local]
                     git_remote_prune(pkg, progress)
                 end
+
+                git_gc(pkg, progress)
+                git_repack(pkg, progress)
             end
         end
     end
