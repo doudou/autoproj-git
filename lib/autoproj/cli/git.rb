@@ -29,7 +29,7 @@ module Autoproj
             end
 
             def git_repack(pkg, progress)
-                pkg.progress_start "#{progress}%s: repack", done_message: "#{progress}%s: gc" do
+                pkg.progress_start "#{progress}%s: repack", done_message: "#{progress}%s: repack" do
                     pkg.importer.run_git_bare(pkg, 'repack', '-adl')
                 end
             end
