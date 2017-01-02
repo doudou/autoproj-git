@@ -9,7 +9,7 @@ module Autoproj
                 initialize_and_load
                 source_packages, * =
                     finalize_setup(user_selection,
-                                   ignore_non_imported_packages: true)
+                                   non_imported_packages: :ignore)
                 git_packages = source_packages.map do |pkg_name|
                     pkg = ws.manifest.find_autobuild_package(pkg_name)
                     pkg if pkg.importer.kind_of?(Autobuild::Git)
