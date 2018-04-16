@@ -15,21 +15,38 @@ module Autoproj
                     pkg if pkg.importer.kind_of?(Autobuild::Git)
                 end.compact
 
-                git_packages.each_with_index do |pkg, i|
-                    cleanup_package(pkg, "[#{i}/#{git_packages.size}] ",
-                                    local: options[:local],
-                                    remove_obsolete_remotes: options[:remove_obsolete_remotes])
+                package_failures = []
+                pool = Concurrent::FixedThreadPool.new(4)
+                futures = git_packages.each_with_index.map do |pkg, i|
+                    Concurrent::Future.execute(executor: pool) do
+                        begin
+                            cleanup_package(pkg, " [#{i}/#{git_packages.size}]",
+                                            local: options[:local],
+                                            remove_obsolete_remotes: options[:remove_obsolete_remotes])
+                            nil
+                        rescue Autobuild::SubcommandFailed => e
+                            Autoproj.error "failed: #{e.message}"
+                            e
+                        end
+                    end
+                end
+                package_failures = futures.each(&:execute).map(&:value!).compact
+            rescue Interrupt => interrupt
+            ensure
+                pool.shutdown if pool
+                Autobuild::Reporting.report_finish_on_error(
+                    package_failures, on_package_failures: :raise, interrupted_by: interrupt)
                 end
             end
 
             def git_gc(pkg, progress)
-                pkg.progress_start "#{progress}%s: gc", done_message: "#{progress}%s: gc" do
+                pkg.progress_start "gc %s#{progress}", done_message: "gc %s#{progress}" do
                     pkg.importer.run_git_bare(pkg, 'gc')
                 end
             end
 
             def git_repack(pkg, progress)
-                pkg.progress_start "#{progress}%s: repack", done_message: "#{progress}%s: repack" do
+                pkg.progress_start "repack %s#{progress}", done_message: "repack %s#{progress}" do
                     pkg.importer.run_git_bare(pkg, 'repack', '-adl')
                 end
             end
@@ -44,11 +61,8 @@ module Autoproj
             end
  
             def git_remote_prune(pkg, progress)
-                remotes = git_all_remotes(pkg)
-                remotes.each do |remote_name|
-                    pkg.progress_start "#{progress}%s: pruning #{remote_name}", done_message: "#{progress}%s: pruned #{remote_name}" do
-                        pkg.importer.run_git(pkg, 'remote', 'prune', remote_name)
-                    end
+                pkg.progress_start "pruning %s#{progress}", done_message: "pruned %s#{progress}" do
+                    pkg.importer.run_git(pkg, 'fetch', '-p')
                 end
             end
 
@@ -59,7 +73,7 @@ module Autoproj
                 end
 
                 remotes.each do |remote_name|
-                    pkg.progress_start "#{progress}%s: removing remote #{remote_name}", done_message: "#{progress}%s: removed remote #{remote_name}" do
+                    pkg.progress_start "removing remote %s/#{remote_name}#{progress}", done_message: "removed remote %s/#{remote_name}#{progress}" do
                         pkg.importer.run_git(pkg, 'remote', 'rm', remote_name)
                     end
                 end
