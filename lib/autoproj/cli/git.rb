@@ -36,6 +36,14 @@ module Autoproj
                 pool.shutdown if pool
                 Autobuild::Reporting.report_finish_on_error(
                     package_failures, on_package_failures: :raise, interrupted_by: interrupt)
+            end
+
+            def git_clean_invalid_refs(pkg, progress)
+                output = pkg.importer.run_git_bare(pkg, 'show-ref')
+                output.each do |line|
+                    if m = line.match(/error: (.*) does not point to a valid object!/)
+                        pkg.importer.run_git_bare(pkg, 'update-ref', '-d', m[1])
+                    end
                 end
             end
 
@@ -80,6 +88,7 @@ module Autoproj
             end
 
             def cleanup_package(pkg, progress, options = Hash.new)
+                git_clean_invalid_refs(pkg, progress)
                 if options[:remove_obsolete_remotes]
                     git_remove_obsolete_remotes(pkg, progress)
                 end
